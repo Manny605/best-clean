@@ -42,6 +42,15 @@ const supabaseApi = {
     .select('*, lignes:lignes_commande(*), zone:zones(nom_fr,nom_ar), bus:bus(nom)')
     .order('created_at', { ascending: false }).limit(1000).then(ok),
   updateOrder: (id, patch) => sb.from('commandes').update(patch).eq('id', id).then(ok),
+  // Remplace coordonnées et lignes ; prix et totaux recalculés par la base
+  editOrder: (id, client, lignes) => sb.rpc('modifier_commande', { p_id: id, p_client: client, p_lignes: lignes }).then(ok),
+  // Prévient à chaque création / modification de commande. Renvoie la fonction pour se désabonner.
+  subscribeOrders(cb) {
+    const ch = sb.channel('commandes-equipe')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commandes' }, (p) => cb(p.eventType, p.new))
+      .subscribe()
+    return () => sb.removeChannel(ch)
+  },
   sendBus: (busId, date) => sb.rpc('envoyer_bus', { p_bus_id: busId, p_date: date }).then(ok),
   updateArticle: (id, patch) => sb.from('articles').update(patch).eq('id', id).then(ok),
   createArticle: (row) => sb.from('articles').insert(row).then(ok),
@@ -66,10 +75,7 @@ function save() { try { localStorage.setItem(KEY_DEMO, JSON.stringify(mem)) } ca
 const uid = () => Math.random().toString(36).slice(2, 10)
 const wait = (v) => new Promise((r) => setTimeout(() => r(clone(v)), 150))
 
-function buildOrder(db, client, lignes, extra = {}) {
-  const zone = db.zones.find((z) => z.id === client.zone_id)
-  if (!client.nom?.trim() || !client.telephone?.trim()) throw new Error('Nom et téléphone obligatoires')
-  if (!zone) throw new Error('Zone inconnue')
+function construireLignes(db, lignes) {
   if (!lignes.length) throw new Error('La commande est vide')
   const byId = Object.fromEntries(db.articles.map((x) => [x.id, x]))
   const out = lignes.map((l) => {
@@ -84,6 +90,14 @@ function buildOrder(db, client, lignes, extra = {}) {
       quantite: q, prix_unitaire: pu, montant: pu * q,
     }
   })
+  return { out, byId }
+}
+
+function buildOrder(db, client, lignes, extra = {}) {
+  const zone = db.zones.find((z) => z.id === client.zone_id)
+  if (!client.nom?.trim() || !client.telephone?.trim()) throw new Error('Nom et téléphone obligatoires')
+  if (!zone) throw new Error('Zone inconnue')
+  const { out, byId } = construireLignes(db, lignes)
   const t = calculerTotaux(lignes, byId, zone)
   db.seq += 1
   const bus = db.bus.find((b) => b.id === zone.bus_id)
@@ -135,6 +149,23 @@ const demoApi = {
   async signOut() { load().session = null; save() },
   listOrders: async () => wait(load().commandes),
   async updateOrder(id, patch) { Object.assign(load().commandes.find((c) => c.id === id), patch); save(); return wait(null) },
+  async editOrder(id, client, lignes) {
+    const db = load()
+    const o = db.commandes.find((c) => c.id === id)
+    if (!client.nom?.trim() || !client.telephone?.trim()) throw new Error('Nom et téléphone obligatoires')
+    const zone = db.zones.find((z) => z.id === (client.zone_id || o.zone_id))
+    const { out, byId } = construireLignes(db, lignes)
+    const t = calculerTotaux(lignes, byId, zone)
+    const bus = zone.id !== o.zone_id ? db.bus.find((b) => b.id === zone.bus_id) : null
+    Object.assign(o, {
+      client_nom: client.nom.trim(), telephone: client.telephone.trim(), adresse: client.adresse || '', note: client.note || '',
+      zone_id: zone.id, zone: { nom_fr: zone.nom_fr, nom_ar: zone.nom_ar }, lignes: out,
+      sous_total: t.sousTotal, frais_livraison: t.frais, total: t.total,
+      ...(bus && { bus_id: bus.id, bus: { nom: bus.nom } }),
+    })
+    save(); return wait(null)
+  },
+  subscribeOrders: () => () => {}, // une seule personne en démo : rien à écouter
   async sendBus(busId, date) {
     let n = 0
     for (const c of load().commandes) if (c.bus_id === busId && c.statut === 'en_attente') { c.statut = 'planifiee'; c.date_collecte = date; n++ }

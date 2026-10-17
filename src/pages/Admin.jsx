@@ -5,6 +5,23 @@ import { STATUTS } from '../lib/i18n.jsx'
 import { mru } from '../lib/pricing.js'
 import OrderForm from '../components/OrderForm.jsx'
 import Recu, { dateFr, lienWhatsApp, texteRecu } from '../components/Recu.jsx'
+import EditionCommande from '../components/EditionCommande.jsx'
+import Etiquettes from '../components/Etiquettes.jsx'
+import { messageStatut } from '../lib/messages.js'
+
+// Petit signal sonore à l'arrivée d'une commande (sans fichier audio)
+function bip() {
+  try {
+    const ctx = new AudioContext()
+    for (const [f, t] of [[880, 0], [1320, 0.18]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain()
+      o.frequency.value = f; o.connect(g); g.connect(ctx.destination)
+      g.gain.setValueAtTime(0.18, ctx.currentTime + t)
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.35)
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.35)
+    }
+  } catch { /* son indisponible */ }
+}
 
 // Textes du formulaire de commande côté équipe (toujours en français)
 const tFR = {
@@ -14,6 +31,7 @@ const tFR = {
   free: 'Gratuite', total: 'Total', toFree: (n) => `Encore ${n} MRU pour la livraison gratuite`, chooseZoneFirst: 'Choisir le quartier',
   confirm: 'Enregistrer la commande', sending: 'Enregistrement…', empty: 'Ajoutez au moins un article', missing: 'Nom, téléphone et quartier obligatoires',
   missingDims: 'Longueur et largeur manquantes', byM2: 'Au mètre carré', byPiece: 'À la pièce', summary: 'Récapitulatif',
+  summaryEmpty: 'Aucun article', errName: 'Nom obligatoire', errPhone: 'Numéro à 8 chiffres', errZone: 'Quartier obligatoire',
 }
 
 const demain = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) }
@@ -29,7 +47,7 @@ function Login({ onDone }) {
   const [pw, setPw] = useState(isDemo ? 'demo' : '')
   const [err, setErr] = useState('')
   return (
-    <div className="login-wrap">
+    <div className="login-wrap" dir="ltr" lang="fr">
       <form className="panel login" onSubmit={async (e) => { e.preventDefault(); setErr(''); try { await api.signIn(email, pw); onDone() } catch (x) { setErr(x.message) } }}>
         <div className="brand-mark"><span className="dot" />BestClean</div>
         <h1>Espace équipe</h1>
@@ -45,7 +63,7 @@ function Login({ onDone }) {
 }
 
 // ------------------------------------------------------------------ Commandes
-function Commandes({ orders, catalog, reload, openOrder }) {
+function Commandes({ orders, catalog, reload, openOrder, nouveaux }) {
   const [statut, setStatut] = useState('actives')
   const [bus, setBus] = useState('')
   const [q, setQ] = useState('')
@@ -73,7 +91,7 @@ function Commandes({ orders, catalog, reload, openOrder }) {
           <thead><tr><th>N°</th><th>Client</th><th>Quartier</th><th>Articles</th><th className="num">Total</th><th>Statut</th></tr></thead>
           <tbody>
             {rows.map((o) => (
-              <tr key={o.id} onClick={() => openOrder(o)} className="clickable">
+              <tr key={o.id} onClick={() => openOrder(o)} className={'clickable' + (nouveaux.includes(o.id) ? ' is-new' : '')}>
                 <td><span className="mono">{o.numero}</span><div className="muted small">{dateFr(o.created_at)}{o.source === 'telephone' ? ' · ☎' : ''}</div></td>
                 <td>{o.client_nom}<div className="muted small mono">{o.telephone}</div></td>
                 <td>{o.zone?.nom_fr}<div className="muted small">{o.bus?.nom}</div></td>
@@ -94,9 +112,14 @@ function Commandes({ orders, catalog, reload, openOrder }) {
   )
 }
 
-function Drawer({ order, onClose, reload, print }) {
+function Drawer({ order, catalog, onClose, reload, print }) {
+  const [edition, setEdition] = useState(false)
+  const [lg, setLg] = useState('fr') // langue des messages envoyés au client
   if (!order) return null
-  const set = async (statut) => { await api.updateOrder(order.id, { statut }); await reload(); onClose() }
+  // Le panneau reste ouvert après un changement de statut, pour prévenir le client tout de suite
+  const set = async (statut) => { await api.updateOrder(order.id, { statut }); await reload() }
+  const nbPieces = order.lignes.reduce((s, l) => s + l.quantite, 0)
+  const message = messageStatut(order, lg)
   return (
     <div className="drawer-bg no-print" onClick={onClose}>
       <aside className="drawer" onClick={(e) => e.stopPropagation()}>
@@ -104,19 +127,40 @@ function Drawer({ order, onClose, reload, print }) {
           <div><span className="mono strong">{order.numero}</span> <Pill statut={order.statut} /></div>
           <button className="icon-btn" onClick={onClose} aria-label="Fermer">×</button>
         </div>
-        <Recu commande={order} lang="fr" />
-        {order.note && <p className="note-box"><b>Remarque :</b> {order.note}</p>}
-        <div className="btn-row">
-          <a className="primary-btn wa" href={lienWhatsApp(texteRecu(order, 'fr'), order.telephone)} target="_blank" rel="noreferrer">Reçu WhatsApp FR</a>
-          <a className="ghost-btn" href={lienWhatsApp(texteRecu(order, 'ar'), order.telephone)} target="_blank" rel="noreferrer">واتساب عربي</a>
-          {canPrint && <button className="ghost-btn" onClick={() => print(<Recu commande={order} lang="fr" />)}>Imprimer</button>}
-        </div>
-        <h3>Changer le statut</h3>
-        <div className="status-grid">
-          {Object.entries(STATUTS).map(([k, v]) => (
-            <button key={k} className={`status-btn tone-${v.tone}` + (order.statut === k ? ' on' : '')} onClick={() => set(k)}>{v.fr}</button>
-          ))}
-        </div>
+        {edition ? (
+          <EditionCommande commande={order} catalog={catalog} onCancel={() => setEdition(false)}
+            onSave={async (c, l) => { await api.editOrder(order.id, c, l); await reload(); setEdition(false) }} />
+        ) : (
+          <>
+            <Recu commande={order} lang="fr" />
+            {order.note && <p className="note-box"><b>Remarque :</b> {order.note}</p>}
+            <div className="btn-row">
+              <button className="ghost-btn" onClick={() => setEdition(true)}>✎ Modifier</button>
+              {canPrint && <button className="ghost-btn" onClick={() => print(<Etiquettes commande={order} />)}>Étiquettes ({nbPieces})</button>}
+              {canPrint && <button className="ghost-btn" onClick={() => print(<Recu commande={order} lang="fr" />)}>Imprimer le reçu</button>}
+              <a className="ghost-btn" href={lienWhatsApp(texteRecu(order, lg), order.telephone)} target="_blank" rel="noreferrer">Reçu WhatsApp</a>
+            </div>
+
+            <div className="notify">
+              <div className="notify-head">
+                <b>Prévenir le client · {STATUTS[order.statut].fr}</b>
+                <div className="seg" role="group" aria-label="Langue du message">
+                  <button className={lg === 'fr' ? 'on' : ''} onClick={() => setLg('fr')}>FR</button>
+                  <button className={lg === 'ar' ? 'on' : ''} onClick={() => setLg('ar')}>عربي</button>
+                </div>
+              </div>
+              <p className="notify-msg" dir={lg === 'ar' ? 'rtl' : 'ltr'}>{message}</p>
+              <a className="primary-btn wa" href={lienWhatsApp(message, order.telephone)} target="_blank" rel="noreferrer">Envoyer sur WhatsApp</a>
+            </div>
+
+            <h3>Changer le statut</h3>
+            <div className="status-grid">
+              {Object.entries(STATUTS).map(([k, v]) => (
+                <button key={k} className={`status-btn tone-${v.tone}` + (order.statut === k ? ' on' : '')} onClick={() => set(k)}>{v.fr}</button>
+              ))}
+            </div>
+          </>
+        )}
       </aside>
     </div>
   )
@@ -295,6 +339,7 @@ export default function Admin() {
   const [open, setOpen] = useState(null)
   const [printNode, setPrintNode] = useState(null)
   const [toast, setToast] = useState(null)
+  const [nouveaux, setNouveaux] = useState([]) // commandes arrivées du site depuis l'ouverture, pas encore consultées
 
   useEffect(() => { document.documentElement.dir = 'ltr'; document.documentElement.lang = 'fr' }, [])
   useEffect(() => { api.getSession().then((s) => setSession(s || null)) }, [])
@@ -302,6 +347,23 @@ export default function Admin() {
   const reloadCatalog = useCallback(async () => { setCatalog(await api.getCatalog()) }, [])
   useEffect(() => { if (session) { reload(); reloadCatalog() } }, [session, reload, reloadCatalog])
   useEffect(() => { if (open) setOpen(orders.find((o) => o.id === open.id) || null) }, [orders]) // eslint-disable-line
+
+  // Temps réel : la liste se met à jour seule, avec un son pour chaque commande passée sur le site
+  useEffect(() => {
+    if (!session) return
+    let t
+    const stop = api.subscribeOrders((evt, row) => {
+      clearTimeout(t); t = setTimeout(reload, 400) // une création envoie plusieurs évènements : un seul rechargement
+      if (evt === 'INSERT' && row?.source === 'web') { setNouveaux((n) => (n.includes(row.id) ? n : [...n, row.id])); bip() }
+    })
+    const filet = setInterval(reload, 60000) // au cas où la connexion temps réel tombe
+    return () => { stop(); clearInterval(filet); clearTimeout(t) }
+  }, [session, reload])
+  useEffect(() => {
+    document.title = nouveaux.length ? `(${nouveaux.length}) BestClean · équipe` : 'BestClean · équipe'
+    return () => { document.title = 'BestClean' }
+  }, [nouveaux.length])
+  const ouvrir = (o) => { setOpen(o); setNouveaux((n) => n.filter((x) => x !== o.id)) }
 
   const print = (node) => { setPrintNode(node); setTimeout(() => window.print(), 50) }
 
@@ -320,10 +382,10 @@ export default function Admin() {
 
   const tabs = [['commandes', 'Commandes'], ['bus', 'Bus'], ['nouvelle', 'Nouvelle commande'], ['tarifs', 'Tarifs et quartiers']]
   return (
-    <div className="admin">
+    <div className="admin" dir="ltr" lang="fr">
       <header className="admin-top no-print">
         <div className="brand-mark"><span className="dot" />BestClean <span className="muted small">équipe</span>{isDemo && <span className="demo-badge">Démo</span>}</div>
-        <nav className="tabs">{tabs.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</nav>
+        <nav className="tabs">{tabs.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{k === 'commandes' && nouveaux.length > 0 && <span className="tab-badge">{nouveaux.length}</span>}</button>)}</nav>
         <div className="admin-right">
           <Link to="/" className="muted small">Site client</Link>
           {isDemo && <button className="link-btn small" onClick={() => { api.resetDemo(); location.reload() }}>Réinitialiser la démo</button>}
@@ -332,10 +394,21 @@ export default function Admin() {
       </header>
 
       <main className="admin-main no-print">
+        {nouveaux.length > 0 && (() => {
+          const derniere = orders.find((o) => o.id === nouveaux[nouveaux.length - 1])
+          return (
+            <div className="alerte" role="status">
+              <span className="alerte-dot" aria-hidden />
+              <span><b>{nouveaux.length > 1 ? `${nouveaux.length} nouvelles commandes` : 'Nouvelle commande'}</b>{derniere && <> · {derniere.numero} · {derniere.client_nom} ({derniere.zone?.nom_fr}) · {mru(derniere.total)}</>}</span>
+              {derniere && <button className="primary-btn" onClick={() => { setTab('commandes'); ouvrir(derniere) }}>Voir</button>}
+              <button className="link-btn small" onClick={() => setNouveaux([])}>Tout marquer vu</button>
+            </div>
+          )
+        })()}
         <div className="kpis">{kpi.map(([l, n]) => <div key={l} className="kpi"><span className="mono">{n}</span><span className="muted small">{l}</span></div>)}</div>
         {!catalog ? <div className="loading">…</div> : (
           <>
-            {tab === 'commandes' && <Commandes orders={orders} catalog={catalog} reload={reload} openOrder={setOpen} />}
+            {tab === 'commandes' && <Commandes orders={orders} catalog={catalog} reload={reload} openOrder={ouvrir} nouveaux={nouveaux} />}
             {tab === 'bus' && <Bus orders={orders} catalog={catalog} reload={reload} print={print} />}
             {tab === 'nouvelle' && (
               <>
@@ -356,7 +429,7 @@ export default function Admin() {
           <button className="icon-btn" onClick={() => setToast(null)} aria-label="Fermer">×</button>
         </div>
       )}
-      <Drawer order={open} onClose={() => setOpen(null)} reload={reload} print={print} />
+      <Drawer key={open?.id} order={open} catalog={catalog} onClose={() => setOpen(null)} reload={reload} print={print} />
       <div className="print-only">{printNode}</div>
     </div>
   )
