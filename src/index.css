@@ -437,6 +437,16 @@ a { color: var(--teal-2); text-underline-offset: 3px; }
 .et-detail { font-weight: 500; }
 .et-client, .et-zone { font-size: 9.5pt; }
 
+.catalogue-vide { margin: 12px 0 4px; padding: 16px; border-radius: 12px; background: var(--sand-soft); border: 1px dashed #e3c98a; color: #6b4e0a; }
+
+.del-btn { border: 1px solid transparent; background: none; color: var(--muted); font-size: .8rem; font-weight: 600; padding: .35rem .6rem; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.del-btn:hover { color: var(--red); background: #fbe4de; }
+.del-btn.armed { color: #fff; background: var(--red); animation: pop .25s ease both; }
+.flash { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem .5rem .5rem 1rem; border-radius: 12px; margin: 0 0 12px; }
+.flash-ok { background: #dcf3e8; color: #1c7a52; }
+.flash-warn { background: var(--sand-soft); color: #6b4e0a; border: 1px solid #edd9a6; }
+.flash-error { background: #fbe4de; color: var(--red); }
+
 /* ---------- Réglages : logo */
 .logo-panel { display: grid; gap: 18px; }
 .logo-apercus { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

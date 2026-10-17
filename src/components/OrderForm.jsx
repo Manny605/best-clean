@@ -110,6 +110,8 @@ export default function OrderForm({ catalog, lang, t, onSubmit, admin = false })
       <div className="order-main">
         <section className="panel">
           <h2 className="step-title"><span className="step-n">1</span>{t.articles}</h2>
+          {!articles.length && <p className="catalogue-vide">{t.emptyCatalog}</p>}
+          {m2.length > 0 && <>
           <h3 className="group-title">{t.byM2}</h3>
           <div className="measure-hint">
             <SchemaMesure longueur={t.length.replace(/\s*\(.*\)/, '')} largeur={t.width.replace(/\s*\(.*\)/, '')} />
@@ -146,6 +148,9 @@ export default function OrderForm({ catalog, lang, t, onSubmit, admin = false })
             })}
           </div>
 
+          </>}
+
+          {fixes.length > 0 && <>
           <h3 className="group-title">{t.byPiece}</h3>
           <div className="fixe-list">
             {fixes.map((a) => {
@@ -176,6 +181,7 @@ export default function OrderForm({ catalog, lang, t, onSubmit, admin = false })
               )
             })}
           </div>
+          </>}
         </section>
       </div>
 

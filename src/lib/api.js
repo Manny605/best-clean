@@ -20,6 +20,15 @@ function verifierLogo(file) {
   if (file.size > 2 * 1024 * 1024) throw new Error('Image trop lourde : 2 Mo maximum')
 }
 const ok = ({ data, error }) => { if (error) throw new Error(error.message); return data }
+const UTILISE = '23503' // code Postgres : la ligne est encore référencée ailleurs
+// Supprime un article ou un quartier ; s'il est déjà dans des commandes, on le masque à la place.
+async function supprimerOuMasquer(table, id) {
+  const { error } = await sb.from(table).delete().eq('id', id)
+  if (!error) return 'supprime'
+  if (error.code !== UTILISE) throw new Error(error.message)
+  await sb.from(table).update({ actif: false }).eq('id', id).then(ok)
+  return 'masque'
+}
 
 // ---------------------------------------------------------------- Supabase
 const supabaseApi = {
@@ -63,6 +72,16 @@ const supabaseApi = {
   createZone: (row) => sb.from('zones').insert(row).then(ok),
   updateBus: (id, patch) => sb.from('bus').update(patch).eq('id', id).then(ok),
   createBus: (row) => sb.from('bus').insert(row).then(ok),
+  deleteArticle: (id) => supprimerOuMasquer('articles', id),
+  deleteZone: (id) => supprimerOuMasquer('zones', id),
+  async deleteBus(id) {
+    const zones = await sb.from('zones').select('nom_fr').eq('bus_id', id).then(ok)
+    if (zones.length) throw new Error(`Ce bus dessert encore : ${zones.map((z) => z.nom_fr).join(', ')}. Mettez ces quartiers sur un autre bus avant de le supprimer.`)
+    const { error } = await sb.from('bus').delete().eq('id', id)
+    if (error?.code === UTILISE) throw new Error('Ce bus a déjà des commandes : il ne peut pas être supprimé.')
+    if (error) throw new Error(error.message)
+    return 'supprime'
+  },
 
   async getSettings() {
     const rows = await sb.from('reglages').select('cle, valeur').then(ok)
@@ -208,6 +227,23 @@ const demoApi = {
   async createZone(row) { load().zones.push({ id: uid(), actif: true, ...row }); save() },
   async updateBus(id, patch) { Object.assign(load().bus.find((x) => x.id === id), patch); save() },
   async createBus(row) { load().bus.push({ id: uid(), capacite: 30, ...row }); save() },
+  async deleteArticle(id) {
+    const db = load()
+    if (db.commandes.some((c) => c.lignes.some((l) => l.article_id === id))) { db.articles.find((x) => x.id === id).actif = false; save(); return 'masque' }
+    db.articles = db.articles.filter((x) => x.id !== id); save(); return 'supprime'
+  },
+  async deleteZone(id) {
+    const db = load()
+    if (db.commandes.some((c) => c.zone_id === id)) { db.zones.find((x) => x.id === id).actif = false; save(); return 'masque' }
+    db.zones = db.zones.filter((x) => x.id !== id); save(); return 'supprime'
+  },
+  async deleteBus(id) {
+    const db = load()
+    const zones = db.zones.filter((z) => z.bus_id === id)
+    if (zones.length) throw new Error(`Ce bus dessert encore : ${zones.map((z) => z.nom_fr).join(', ')}. Mettez ces quartiers sur un autre bus avant de le supprimer.`)
+    if (db.commandes.some((c) => c.bus_id === id)) throw new Error('Ce bus a déjà des commandes : il ne peut pas être supprimé.')
+    db.bus = db.bus.filter((x) => x.id !== id); save(); return 'supprime'
+  },
   getSettings: async () => wait(load().reglages || {}),
   async setLogo(file) {
     verifierLogo(file)

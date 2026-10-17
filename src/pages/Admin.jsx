@@ -32,7 +32,7 @@ const tFR = {
   free: 'Gratuite', total: 'Total', toFree: (n) => `Encore ${n} MRU pour la livraison gratuite`, chooseZoneFirst: 'Choisir le quartier',
   confirm: 'Enregistrer la commande', sending: 'Enregistrement…', empty: 'Ajoutez au moins un article', missing: 'Nom, téléphone et quartier obligatoires',
   missingDims: 'Longueur et largeur manquantes', byM2: 'Au mètre carré', byPiece: 'À la pièce', summary: 'Récapitulatif',
-  summaryEmpty: 'Aucun article', errName: 'Nom obligatoire', errPhone: 'Numéro à 8 chiffres', errZone: 'Quartier obligatoire',
+  summaryEmpty: 'Aucun article', emptyCatalog: 'Aucun article dans le catalogue : ajoutez-en dans l’onglet « Tarifs et quartiers ».', errName: 'Nom obligatoire', errPhone: 'Numéro à 8 chiffres', errZone: 'Quartier obligatoire',
 }
 
 const demain = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) }
@@ -263,18 +263,39 @@ function TextCell({ value, onSave, dir }) {
   return <input className="cell wide" dir={dir} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== value && onSave(v)} />
 }
 
+// Supprimer en deux clics : le premier arme le bouton, le second confirme (3 s pour se décider)
+function BoutonSupprimer({ onConfirm }) {
+  const [arme, setArme] = useState(false)
+  useEffect(() => { if (!arme) return; const t = setTimeout(() => setArme(false), 3000); return () => clearTimeout(t) }, [arme])
+  return arme
+    ? <button className="del-btn armed" onClick={() => { setArme(false); onConfirm() }}>Confirmer ?</button>
+    : <button className="del-btn" onClick={() => setArme(true)} title="Supprimer" aria-label="Supprimer">Supprimer</button>
+}
+
 function Tarifs({ catalog, reloadCatalog }) {
+  const [info, setInfo] = useState(null) // { type: 'ok' | 'warn' | 'error', texte }
+  async function supprimer(action, nom, quoi) {
+    setInfo(null)
+    try {
+      const r = await action()
+      setInfo(r === 'masque'
+        ? { type: 'warn', texte: `« ${nom} » apparaît dans des commandes : ${quoi} a été masqué au lieu d’être supprimé, pour garder l’historique.` }
+        : { type: 'ok', texte: `« ${nom} » a été supprimé.` })
+    } catch (x) { setInfo({ type: 'error', texte: x.message }) }
+    reloadCatalog()
+  }
   const upA = async (id, patch) => { await api.updateArticle(id, patch); reloadCatalog() }
   const upZ = async (id, patch) => { await api.updateZone(id, patch); reloadCatalog() }
   const upB = async (id, patch) => { await api.updateBus(id, patch); reloadCatalog() }
   const aConf = catalog.articles.filter((a) => a.a_confirmer)
   return (
     <>
+      {info && <p className={`flash flash-${info.type}`} role="status">{info.texte}<button className="icon-btn" onClick={() => setInfo(null)} aria-label="Fermer">×</button></p>}
       {aConf.length > 0 && <p className="warn">Prix provisoires à vérifier : {aConf.map((a) => a.nom_fr).join(', ')}. Corrigez-les puis décochez « à confirmer ».</p>}
       <h2 className="section-title">Articles</h2>
       <div className="table-wrap">
         <table className="data edit">
-          <thead><tr><th>Nom (FR)</th><th>Nom (AR)</th><th>Calcul</th><th className="num">Prix m²</th><th className="num">Grand / unique</th><th className="num">Petit</th><th>À confirmer</th><th>Visible</th></tr></thead>
+          <thead><tr><th>Nom (FR)</th><th>Nom (AR)</th><th>Calcul</th><th className="num">Prix m²</th><th className="num">Grand / unique</th><th className="num">Petit</th><th>À confirmer</th><th>Visible</th><th /></tr></thead>
           <tbody>
             {catalog.articles.map((a) => (
               <tr key={a.id} className={a.actif ? '' : 'off'}>
@@ -286,8 +307,10 @@ function Tarifs({ catalog, reloadCatalog }) {
                 <td className="num">{a.mode === 'fixe' ? <NumCell value={a.prix_petit} allowNull onSave={(v) => upA(a.id, { prix_petit: v })} /> : '—'}</td>
                 <td><input type="checkbox" checked={a.a_confirmer} onChange={(e) => upA(a.id, { a_confirmer: e.target.checked })} /></td>
                 <td><input type="checkbox" checked={a.actif} onChange={(e) => upA(a.id, { actif: e.target.checked })} /></td>
+                <td><BoutonSupprimer onConfirm={() => supprimer(() => api.deleteArticle(a.id), a.nom_fr, 'l’article')} /></td>
               </tr>
             ))}
+            {!catalog.articles.length && <tr><td colSpan="9" className="empty">Aucun article : ajoutez-en avec les boutons ci-dessous.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -300,7 +323,7 @@ function Tarifs({ catalog, reloadCatalog }) {
       <h2 className="section-title">Quartiers et livraison</h2>
       <div className="table-wrap">
         <table className="data edit">
-          <thead><tr><th>Quartier (FR)</th><th>Quartier (AR)</th><th>Bus</th><th className="num">Frais livraison</th><th className="num">Gratuite dès</th><th>Visible</th></tr></thead>
+          <thead><tr><th>Quartier (FR)</th><th>Quartier (AR)</th><th>Bus</th><th className="num">Frais livraison</th><th className="num">Gratuite dès</th><th>Visible</th><th /></tr></thead>
           <tbody>
             {catalog.zones.map((z) => (
               <tr key={z.id} className={z.actif ? '' : 'off'}>
@@ -310,6 +333,7 @@ function Tarifs({ catalog, reloadCatalog }) {
                 <td className="num"><NumCell value={z.frais_livraison} onSave={(v) => upZ(z.id, { frais_livraison: v })} /></td>
                 <td className="num"><NumCell value={z.seuil_gratuit} onSave={(v) => upZ(z.id, { seuil_gratuit: v })} /></td>
                 <td><input type="checkbox" checked={z.actif} onChange={(e) => upZ(z.id, { actif: e.target.checked })} /></td>
+                <td><BoutonSupprimer onConfirm={() => supprimer(() => api.deleteZone(z.id), z.nom_fr, 'le quartier')} /></td>
               </tr>
             ))}
           </tbody>
@@ -320,9 +344,9 @@ function Tarifs({ catalog, reloadCatalog }) {
       <h2 className="section-title">Bus</h2>
       <div className="table-wrap">
         <table className="data edit">
-          <thead><tr><th>Nom</th><th className="num">Capacité (clients)</th></tr></thead>
+          <thead><tr><th>Nom</th><th className="num">Capacité (clients)</th><th>Quartiers desservis</th><th /></tr></thead>
           <tbody>{catalog.bus.map((b) => (
-            <tr key={b.id}><td><TextCell value={b.nom} onSave={(v) => upB(b.id, { nom: v })} /></td><td className="num"><NumCell value={b.capacite} onSave={(v) => upB(b.id, { capacite: v || 30 })} /></td></tr>
+            <tr key={b.id}><td><TextCell value={b.nom} onSave={(v) => upB(b.id, { nom: v })} /></td><td className="num"><NumCell value={b.capacite} onSave={(v) => upB(b.id, { capacite: v || 30 })} /></td><td className="muted small">{catalog.zones.filter((z) => z.bus_id === b.id).map((z) => z.nom_fr).join(', ') || '—'}</td><td><BoutonSupprimer onConfirm={() => supprimer(() => api.deleteBus(b.id), b.nom, 'le bus')} /></td></tr>
           ))}</tbody>
         </table>
       </div>
