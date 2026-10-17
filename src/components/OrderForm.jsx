@@ -95,7 +95,9 @@ export default function OrderForm({ catalog, lang, t, onSubmit, admin = false })
       await onSubmit({ ...client, source: admin ? 'telephone' : 'web' }, lignes.map((l) => ({ ...l, longueur: l.longueur ? Number(String(l.longueur).replace(',', '.')) : undefined, largeur: l.largeur ? Number(String(l.largeur).replace(',', '.')) : undefined })))
       setQty({}); setPieces([]); setClient(VIDE); setErrs({})
     } catch (err) {
-      setError(err.message)
+      // Messages du serveur (en français) traduits pour le client
+      const m = err.message || ''
+      setError(m.includes('Trop de commandes') ? (t.errTooMany || m) : m.includes('saturé') ? (t.errBusy || m) : m.includes('téléphone invalide') ? t.errPhone : m)
     } finally { setBusy(false) }
   }
 

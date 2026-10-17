@@ -1,4 +1,4 @@
-// Règles de prix BestClean — doivent rester identiques à creer_commande() dans supabase/schema.sql.
+// Règles de prix BestClean — doivent rester identiques à _inserer_lignes() dans supabase/schema.sql.
 // Le serveur recalcule toujours les prix : ce fichier sert à l'affichage en direct.
 
 export function prixUnitaire(article, ligne) {

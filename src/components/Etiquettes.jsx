@@ -1,5 +1,6 @@
 // Une étiquette par pièce, à coller sur chaque article à la collecte pour ne jamais les mélanger.
 import { detailLigne } from './Recu.jsx'
+import { Logo } from '../lib/reglages.jsx'
 
 export default function Etiquettes({ commande: o }) {
   const pieces = o.lignes.flatMap((l) => Array.from({ length: l.quantite }, () => l))
@@ -8,7 +9,7 @@ export default function Etiquettes({ commande: o }) {
       {pieces.map((l, i) => (
         <div className="etiquette" key={i}>
           <div className="et-top">
-            <span className="brand-mark small"><span className="dot" />BestClean</span>
+            <span className="brand-mark small"><Logo />BestClean</span>
             <span className="et-n">{i + 1} / {pieces.length}</span>
           </div>
           <div className="et-num">{o.numero}</div>

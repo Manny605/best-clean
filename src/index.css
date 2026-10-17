@@ -20,8 +20,9 @@
   --red: #bf4129;
   --radius: 16px;
   --shadow: 0 1px 2px rgba(16, 37, 42, .05), 0 10px 30px -14px rgba(16, 37, 42, .18);
-  --f-body: 'IBM Plex Sans Arabic', system-ui, sans-serif;
-  --f-display: 'Reem Kufi', 'IBM Plex Sans Arabic', sans-serif;
+  /* Manrope pour le français, Almarai pour l'arabe : chaque lettre prend la police de son alphabet */
+  --f-body: 'Manrope', 'Almarai', system-ui, sans-serif;
+  --f-display: 'Manrope', 'Almarai', system-ui, sans-serif;
   font-family: var(--f-body);
   color: var(--ink);
   background: var(--bg);
@@ -34,7 +35,10 @@ body { margin: 0; min-height: 100vh; overflow-x: hidden; line-height: 1.5;
   background:
     radial-gradient(900px 400px at 110% -10%, rgba(232, 176, 75, .10), transparent 60%),
     var(--bg); }
-h1, h2, h3 { margin: 0; line-height: 1.2; font-family: var(--f-display); font-weight: 600; }
+h1, h2, h3 { margin: 0; line-height: 1.25; font-family: var(--f-display); font-weight: 800; letter-spacing: -.01em; }
+/* L'arabe est une écriture liée : jamais d'espacement entre les lettres */
+[lang=ar] h1, [lang=ar] h2, [lang=ar] h3, [lang=ar] .group-title, [lang=ar] .eyebrow { letter-spacing: 0; }
+[lang=ar] .group-title { text-transform: none; font-size: .85rem; }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--teal-2); text-underline-offset: 3px; }
 :focus-visible { outline: 3px solid var(--sand); outline-offset: 2px; }
@@ -59,8 +63,12 @@ a { color: var(--teal-2); text-underline-offset: 3px; }
 }
 
 /* ---------- Marque & barre du haut */
-.brand-mark { display: inline-flex; align-items: center; gap: .55rem; font-family: var(--f-display); font-weight: 700; font-size: 1.3rem; color: var(--teal); text-decoration: none; letter-spacing: .01em; }
+.brand-mark { display: inline-flex; align-items: center; gap: .55rem; font-family: var(--f-display); font-weight: 800; font-size: 1.3rem; color: var(--teal); text-decoration: none; letter-spacing: -.02em; }
 .brand-mark.small { font-size: 1.05rem; }
+.brand-mark .logo { height: 38px; width: auto; flex: none; display: block; }
+.brand-mark.small .logo { height: 28px; }
+.login-brand { flex-direction: column; align-items: flex-start; gap: .4rem; }
+.login-brand .logo { height: 72px; }
 .brand-mark .dot { width: 15px; height: 15px; margin: 0 2px; border-radius: 3px; transform: rotate(45deg); flex: none;
   background: conic-gradient(var(--sand) 25%, var(--terra) 0 50%, var(--sand) 0 75%, var(--terra) 0);
   box-shadow: 0 0 0 2.5px var(--teal); }
@@ -82,17 +90,21 @@ a { color: var(--teal-2); text-underline-offset: 3px; }
           mask-image: linear-gradient(#000 40%, transparent); }
 .hero-inner { position: relative; z-index: 1; padding-top: 210px; padding-bottom: 30px; }
 .eyebrow { display: inline-block; color: var(--sand); font-weight: 600; margin: 0 0 .8rem; font-size: .9rem; letter-spacing: .02em; }
-.hero h1 { font-size: clamp(2rem, 8vw, 3.4rem); font-weight: 700; max-width: 16ch; color: #fff; line-height: 1.15; }
+.hero h1 { font-size: clamp(2rem, 8vw, 3.4rem); font-weight: 800; max-width: 16ch; color: #fff; line-height: 1.15; letter-spacing: -.025em; }
+[lang=ar] .hero h1 { line-height: 1.35; }
 .hero-text { color: rgba(243, 237, 225, .78); max-width: 50ch; font-size: 1rem; margin: .8rem 0 0; }
 .how { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 10px; counter-reset: how; }
 .how li { counter-increment: how; display: grid; grid-template-columns: 34px 1fr; column-gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09); }
 .how li::before { content: counter(how); grid-row: span 2; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-family: var(--f-display); font-weight: 700; background: var(--sand); color: var(--teal-deep); }
-.how b { font-family: var(--f-display); font-weight: 600; color: #fff; }
+.how b { font-family: var(--f-display); font-weight: 700; color: #fff; }
 .how span { font-size: .88rem; color: rgba(243, 237, 225, .72); }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 22px; }
 .chip { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; font-weight: 600; padding: .4rem .8rem; border-radius: 99px; background: rgba(35, 148, 106, .2); color: #bdeed8; border: 1px solid rgba(189, 238, 216, .25); }
 .chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #5fd3a3; }
 .hero .rug-band { position: absolute; inset-inline: 0; bottom: 0; }
+.wa-link { display: inline-flex; align-items: center; gap: .45rem; margin-top: 14px; color: #bdeed8; font-weight: 700; font-size: .92rem; text-decoration: none; border-bottom: 1px solid rgba(189, 238, 216, .35); padding-bottom: 2px; }
+.wa-link svg { width: 18px; height: 18px; fill: #5fd3a3; }
+.wa-link:hover { color: #fff; border-color: #fff; }
 .hero-inner > * { animation: rise .6s cubic-bezier(.2, .7, .2, 1) both; }
 .hero-inner > :nth-child(2) { animation-delay: .06s; }
 .hero-inner > :nth-child(3) { animation-delay: .12s; }
@@ -174,7 +186,7 @@ a { color: var(--teal-2); text-underline-offset: 3px; }
           mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%; }
 .summary .step-title { margin-bottom: 6px; }
 .sum-row { display: flex; justify-content: space-between; gap: 1rem; }
-.sum-row.grand { font-family: var(--f-display); font-size: 1.45rem; font-weight: 700; border-top: 2px dashed var(--line); padding-top: 12px; margin-top: 6px; color: var(--teal); }
+.sum-row.grand { font-family: var(--f-display); font-size: 1.45rem; font-weight: 800; border-top: 2px dashed var(--line); padding-top: 12px; margin-top: 6px; color: var(--teal); }
 .progress-free { font-size: .82rem; color: #8a6510; display: grid; gap: 4px; }
 .bar { height: 7px; background: #efe7d6; border-radius: 99px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--sand), var(--terra)); border-radius: 99px; transition: width .35s; }
@@ -207,7 +219,7 @@ a { color: var(--teal-2); text-underline-offset: 3px; }
 .ticket::before, .ticket::after { content: ''; position: absolute; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--bg); border: 2px dashed var(--sand); }
 .ticket::before { left: -11px; clip-path: inset(0 0 0 50%); }
 .ticket::after { right: -11px; clip-path: inset(0 50% 0 0); }
-.big-num { font-family: var(--f-display); font-size: 2.3rem; font-weight: 700; color: var(--teal); direction: ltr; letter-spacing: .03em; }
+.big-num { font-family: var(--f-display); font-size: 2.3rem; font-weight: 800; color: var(--teal); direction: ltr; letter-spacing: .01em; }
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
 .track-form { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: end; }
 .timeline { list-style: none; padding: 8px 16px; margin: 20px 0; display: grid; gap: 0; }
@@ -242,7 +254,7 @@ a { color: var(--teal-2); text-underline-offset: 3px; }
 .foot-inner { max-width: 1120px; margin: 0 auto; padding: 24px 16px calc(110px + env(safe-area-inset-bottom)); display: grid; gap: 6px; justify-items: center; text-align: center; }
 .foot-inner p { margin: 0; }
 .foot .brand-mark { color: #fff; }
-.foot .brand-mark .dot { box-shadow: 0 0 0 2.5px #fff; }
+.foot .brand-mark .logo { filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35)); }
 .foot a { color: var(--sand); }
 
 /* ---------- Admin */
@@ -425,6 +437,20 @@ a { color: var(--teal-2); text-underline-offset: 3px; }
 .et-detail { font-weight: 500; }
 .et-client, .et-zone { font-size: 9.5pt; }
 
+/* ---------- Réglages : logo */
+.logo-panel { display: grid; gap: 18px; }
+.logo-apercus { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.logo-apercu { display: grid; justify-items: center; gap: 8px; padding: 18px 12px 10px; border-radius: 12px; border: 1px solid var(--line); }
+.logo-apercu img { height: 90px; max-width: 100%; object-fit: contain; }
+.logo-apercu span { font-size: .78rem; color: var(--muted); }
+.logo-apercu.clair { background: var(--bg); }
+.logo-apercu.sombre { background: var(--teal-deep); }
+.logo-apercu.sombre span { color: rgba(243, 237, 225, .7); }
+.logo-actions .btn-row { justify-content: flex-start; }
+.file-btn { cursor: pointer; }
+.file-btn.disabled { opacity: .6; pointer-events: none; }
+.etiquette .brand-mark .logo { height: 7mm; }
+
 /* ---------- Tablette et plus */
 @media (min-width: 600px) {
   .how { grid-template-columns: repeat(3, 1fr); }
@@ -470,6 +496,8 @@ a { color: var(--teal-2); text-underline-offset: 3px; }
   .foot-inner { padding-bottom: 28px; }
   .kpis { grid-template-columns: repeat(5, 1fr); }
   .infos { grid-template-columns: minmax(0, 1fr) 370px; gap: 22px; padding-top: 24px; }
+  .logo-panel { grid-template-columns: 420px 1fr; align-items: center; }
+  .brand-mark .logo { height: 44px; }
   .admin-top { padding: 12px 20px; }
   .tabs { order: 0; width: auto; flex: 1; }
   .admin-right { margin-inline-start: 0; }

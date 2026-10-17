@@ -406,3 +406,140 @@ do $$ begin
     alter publication supabase_realtime add table commandes;
   end if;
 end $$;
+
+-- Catalogue et quartiers alignés sur l'offre réelle de BestClean.
+-- Relançable sans risque. Les prix restent modifiables dans l'onglet « Tarifs et quartiers ».
+
+-- ---------- Articles
+update articles set prix_grand = 100, prix_petit = 50 where code = 'rideau';
+update articles set prix_grand = 200, prix_petit = null where code = 'couvre_lit';   -- taille unique
+update articles set a_confirmer = false where code in ('moquette', 'natte');          -- 60 MRU/m² confirmés
+
+insert into articles (code, nom_fr, nom_ar, mode, prix_m2, prix_grand, prix_petit, ordre) values
+  ('zarbiya', 'Zarbiya', 'زربية', 'm2',   100,  null, null, 4),
+  ('outaya',  'Outaya',  'وطاية', 'fixe', null, 50,   null, 13)
+on conflict (code) do nothing;
+
+update articles a set ordre = v.o from (values
+  ('tapis', 1), ('moquette', 2), ('natte', 3), ('zarbiya', 4), ('couverture', 5), ('couvre_lit', 6),
+  ('drap', 7), ('rideau', 8), ('oreiller', 9), ('tapis_priere', 10), ('sajjada', 11), ('housse', 12), ('outaya', 13)
+) v(code, o) where a.code = v.code;
+
+-- ---------- Quartiers : les 9 moughataas de Nouakchott + « autre »
+-- Chaque moughataa suit le bus de son secteur : celui de Tevragh Zeina (nord-ouest)
+-- ou celui d'Arafat (sud-est). Les anciens quartiers sont masqués, pas supprimés.
+with ref as (
+  select (select bus_id from zones where nom_fr = 'Tevragh Zeina' limit 1) as nord,
+         (select bus_id from zones where nom_fr = 'Arafat' limit 1)        as sud
+)
+insert into zones (nom_fr, nom_ar, bus_id, frais_livraison, seuil_gratuit, ordre)
+select v.fr, v.ar, case v.secteur when 'nord' then ref.nord else ref.sud end, 200, v.seuil, v.o
+from ref, (values
+  ('Ksar',       'لكصر',      'nord', 700,  2),
+  ('Sebkha',     'السبخة',    'nord', 700,  3),
+  ('Teyarett',   'تيارت',     'nord', 700,  4),
+  ('Dar Naim',   'دار النعيم', 'nord', 700,  5),
+  ('El Mina',    'الميناء',   'sud',  1000, 7),
+  ('Riyad',      'الرياض',    'sud',  1000, 8),
+  ('Toujounine', 'توجنين',    'sud',  1000, 9),
+  ('Autre (préciser l''adresse)', 'مكان آخر (حدد العنوان)', 'nord', 1000, 10)
+) v(fr, ar, secteur, seuil, o)
+where not exists (select 1 from zones z where z.nom_fr = v.fr);
+
+update zones set ordre = 1 where nom_fr = 'Tevragh Zeina';
+update zones set ordre = 6 where nom_fr = 'Arafat';
+update zones set actif = false where nom_fr in ('Ain Talh', 'Cité Plage', 'PK', 'Madrid');
+
+-- Protection contre les commandes bidon passées depuis le site (l'équipe n'est pas limitée).
+--   • numéro mauritanien valide : 8 chiffres commençant par 2, 3 ou 4 (indicatif 222 accepté)
+--   • au plus 3 commandes par numéro et par heure
+--   • frein global : au plus 30 commandes web en 10 minutes
+
+create or replace function telephone_normalise(p text) returns text
+language sql immutable as $$
+  select regexp_replace(regexp_replace(coalesce(p, ''), '\D', '', 'g'), '^(00)?222(?=\d{8}$)', '');
+$$;
+
+create index if not exists commandes_created_at on commandes (created_at);
+
+create or replace function creer_commande(p_client jsonb, p_lignes jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_zone   zones%rowtype;
+  v_cmd    commandes%rowtype;
+  v_sous   int;
+  v_frais  int;
+  v_admin  boolean := is_admin();
+  v_tel    text := telephone_normalise(p_client->>'telephone');
+  v_source text := coalesce(p_client->>'source', 'web');
+  v_lat    numeric := (p_client->>'latitude')::numeric;
+  v_lng    numeric := (p_client->>'longitude')::numeric;
+begin
+  if coalesce(trim(p_client->>'nom'), '') = '' or coalesce(trim(p_client->>'telephone'), '') = '' then
+    raise exception 'Nom et téléphone obligatoires';
+  end if;
+  -- seule l'équipe peut enregistrer une commande prise par téléphone
+  if v_source <> 'web' and not v_admin then v_source := 'web'; end if;
+
+  if not v_admin then
+    if v_tel !~ '^[234]\d{7}$' then
+      raise exception 'Numéro de téléphone invalide';
+    end if;
+    if (select count(*) from commandes
+        where telephone_normalise(telephone) = v_tel and created_at > now() - interval '1 hour') >= 3 then
+      raise exception 'Trop de commandes avec ce numéro';
+    end if;
+    if (select count(*) from commandes where source = 'web' and created_at > now() - interval '10 minutes') >= 30 then
+      raise exception 'Service momentanément saturé';
+    end if;
+  end if;
+
+  -- position incohérente : on l'ignore plutôt que de bloquer la commande
+  if v_lat is null or v_lng is null or abs(v_lat) > 90 or abs(v_lng) > 180 then
+    v_lat := null; v_lng := null;
+  end if;
+
+  select * into v_zone from zones where id = (p_client->>'zone_id')::uuid and actif;
+  if not found then raise exception 'Zone inconnue'; end if;
+
+  insert into commandes (client_nom, telephone, adresse, note, zone_id, bus_id, source, latitude, longitude)
+  values (trim(p_client->>'nom'), trim(p_client->>'telephone'), p_client->>'adresse',
+          p_client->>'note', v_zone.id, v_zone.bus_id, v_source, round(v_lat, 6), round(v_lng, 6))
+  returning * into v_cmd;
+
+  v_sous := _inserer_lignes(v_cmd.id, p_lignes, true);
+  v_frais := case when v_sous >= v_zone.seuil_gratuit then 0 else v_zone.frais_livraison end;
+  update commandes set sous_total = v_sous, frais_livraison = v_frais, total = v_sous + v_frais
+  where id = v_cmd.id;
+
+  return suivre_commande(v_cmd.numero, v_cmd.telephone);
+end $$;
+
+-- Réglages du site modifiables par l'équipe (pour commencer : le logo).
+
+create table if not exists reglages (
+  cle        text primary key,
+  valeur     text,
+  updated_at timestamptz not null default now()
+);
+alter table reglages enable row level security;
+drop policy if exists "lecture publique reglages" on reglages;
+create policy "lecture publique reglages" on reglages for select using (true);
+drop policy if exists "admin reglages" on reglages;
+create policy "admin reglages" on reglages for all using (is_admin()) with check (is_admin());
+
+-- Espace de stockage public pour les images du site (logo…). Lecture publique, écriture équipe.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('site', 'site', true, 2097152, array['image/png', 'image/jpeg', 'image/webp'])
+on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit,
+                               allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "equipe ajoute images site" on storage.objects;
+create policy "equipe ajoute images site" on storage.objects for insert to authenticated
+  with check (bucket_id = 'site' and public.is_admin());
+drop policy if exists "equipe modifie images site" on storage.objects;
+create policy "equipe modifie images site" on storage.objects for update to authenticated
+  using (bucket_id = 'site' and public.is_admin()) with check (bucket_id = 'site' and public.is_admin());
+drop policy if exists "equipe supprime images site" on storage.objects;
+create policy "equipe supprime images site" on storage.objects for delete to authenticated
+  using (bucket_id = 'site' and public.is_admin());

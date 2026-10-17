@@ -8,6 +8,7 @@ import Recu, { dateFr, lienWhatsApp, texteRecu } from '../components/Recu.jsx'
 import EditionCommande from '../components/EditionCommande.jsx'
 import Etiquettes from '../components/Etiquettes.jsx'
 import { messageStatut } from '../lib/messages.js'
+import { Logo, useReglages } from '../lib/reglages.jsx'
 
 // Petit signal sonore à l'arrivée d'une commande (sans fichier audio)
 function bip() {
@@ -49,7 +50,7 @@ function Login({ onDone }) {
   return (
     <div className="login-wrap" dir="ltr" lang="fr">
       <form className="panel login" onSubmit={async (e) => { e.preventDefault(); setErr(''); try { await api.signIn(email, pw); onDone() } catch (x) { setErr(x.message) } }}>
-        <div className="brand-mark"><span className="dot" />BestClean</div>
+        <div className="brand-mark login-brand"><Logo />BestClean</div>
         <h1>Espace équipe</h1>
         {isDemo && <p className="muted small">Mode démo : n'importe quel nom d'utilisateur et mot de passe.</p>}
         <label className="field"><span>Nom d'utilisateur</span><input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoCapitalize="none" dir="ltr" /></label>
@@ -330,6 +331,44 @@ function Tarifs({ catalog, reloadCatalog }) {
   )
 }
 
+// ------------------------------------------------------------------ Réglages
+function Reglages() {
+  const { logo, perso, reload } = useReglages()
+  const [etat, setEtat] = useState({ busy: false, ok: '', err: '' })
+  async function changer(action, message) {
+    setEtat({ busy: true, ok: '', err: '' })
+    try { await action(); await reload(); setEtat({ busy: false, ok: message, err: '' }) } catch (x) { setEtat({ busy: false, ok: '', err: x.message }) }
+  }
+  function choisir(e) {
+    const fichier = e.target.files[0]
+    e.target.value = '' // permet de reprendre le même fichier
+    if (fichier) changer(() => api.setLogo(fichier), 'Logo mis à jour sur tout le site.')
+  }
+  return (
+    <>
+      <h2 className="section-title">Logo</h2>
+      <div className="panel logo-panel">
+        <div className="logo-apercus">
+          <div className="logo-apercu clair"><img src={logo} alt="Logo actuel sur fond clair" /><span>En-tête, reçus</span></div>
+          <div className="logo-apercu sombre"><img src={logo} alt="Logo actuel sur fond sombre" /><span>Pied de page</span></div>
+        </div>
+        <div className="logo-actions">
+          <p className="muted small">PNG, JPEG ou WebP, 2 Mo maximum. Un fond transparent (PNG ou WebP) rend mieux. Le logo apparaît en haut du site, dans le pied de page, sur les reçus, les étiquettes et l'onglet du navigateur.</p>
+          <div className="btn-row">
+            <label className={'primary-btn file-btn' + (etat.busy ? ' disabled' : '')}>
+              {etat.busy ? 'Envoi…' : 'Choisir un nouveau logo'}
+              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={choisir} disabled={etat.busy} hidden />
+            </label>
+            {perso && <button className="ghost-btn" disabled={etat.busy} onClick={() => changer(() => api.resetLogo(), 'Logo d’origine rétabli.')}>Revenir au logo d’origine</button>}
+          </div>
+          {etat.ok && <p className="ok">{etat.ok}</p>}
+          {etat.err && <p className="error">{etat.err}</p>}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ------------------------------------------------------------------ Shell
 export default function Admin() {
   const [session, setSession] = useState(undefined)
@@ -380,11 +419,11 @@ export default function Admin() {
   if (session === undefined) return <div className="loading">…</div>
   if (!session) return <Login onDone={() => api.getSession().then(setSession)} />
 
-  const tabs = [['commandes', 'Commandes'], ['bus', 'Bus'], ['nouvelle', 'Nouvelle commande'], ['tarifs', 'Tarifs et quartiers']]
+  const tabs = [['commandes', 'Commandes'], ['bus', 'Bus'], ['nouvelle', 'Nouvelle commande'], ['tarifs', 'Tarifs et quartiers'], ['reglages', 'Réglages']]
   return (
     <div className="admin" dir="ltr" lang="fr">
       <header className="admin-top no-print">
-        <div className="brand-mark"><span className="dot" />BestClean <span className="muted small">équipe</span>{isDemo && <span className="demo-badge">Démo</span>}</div>
+        <div className="brand-mark"><Logo />BestClean <span className="muted small">équipe</span>{isDemo && <span className="demo-badge">Démo</span>}</div>
         <nav className="tabs">{tabs.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{k === 'commandes' && nouveaux.length > 0 && <span className="tab-badge">{nouveaux.length}</span>}</button>)}</nav>
         <div className="admin-right">
           <Link to="/" className="muted small">Site client</Link>
@@ -417,6 +456,7 @@ export default function Admin() {
               </>
             )}
             {tab === 'tarifs' && <Tarifs catalog={catalog} reloadCatalog={reloadCatalog} />}
+            {tab === 'reglages' && <Reglages />}
           </>
         )}
       </main>

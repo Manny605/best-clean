@@ -1,5 +1,6 @@
 import { mru } from '../lib/pricing.js'
 import { STATUTS } from '../lib/i18n.jsx'
+import { Logo } from '../lib/reglages.jsx'
 
 const T = {
   fr: { receipt: 'Reçu de commande', date: 'Date', client: 'Client', zone: 'Quartier', bus: 'Bus', item: 'Article', qty: 'Qté', amount: 'Montant', subtotal: 'Articles', delivery: 'Livraison', free: 'Gratuite', total: 'Total', status: 'Statut', collect: 'Collecte prévue', map: 'Voir sur la carte', big: 'grand', small: 'petit', thanks: 'Merci de votre confiance' },
@@ -45,7 +46,7 @@ export default function Recu({ commande: o, lang = 'fr' }) {
     <div className="recu" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <div className="recu-head">
         <div>
-          <div className="brand-mark small"><span className="dot" />BestClean</div>
+          <div className="brand-mark small"><Logo />BestClean</div>
           <div className="muted">{t.receipt}</div>
         </div>
         <div className="recu-num">

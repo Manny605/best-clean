@@ -9,6 +9,7 @@ const ARTICLES = {
   tapis_priere: priere,
   sajjada: priere,
   housse: <><rect x="4" y="5" width="16" height="14" rx="3" /><path d="M8.5 5v3h7V5" /></>,
+  outaya: <><rect x="2.5" y="9" width="19" height="8" rx="3" /><path d="M7 9v8M12 9v8M17 9v8" /></>,
 }
 const DEFAUT = <><path d="M12 3c3 4 6 7.2 6 10.5A6 6 0 0 1 6 13.5C6 10.2 9 7 12 3z" /></>
 

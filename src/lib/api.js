@@ -14,6 +14,11 @@ const sb = isDemo ? null : createClient(URL, KEY)
 export const loginEmail = (id) => (id.includes('@') ? id.trim() : `${id.trim().toLowerCase()}@bestclean.local`)
 
 const tri = (x, y) => (x.ordre ?? 0) - (y.ordre ?? 0)
+const FORMATS_LOGO = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }
+function verifierLogo(file) {
+  if (!FORMATS_LOGO[file.type]) throw new Error('Format accepté : PNG, JPEG ou WebP')
+  if (file.size > 2 * 1024 * 1024) throw new Error('Image trop lourde : 2 Mo maximum')
+}
 const ok = ({ data, error }) => { if (error) throw new Error(error.message); return data }
 
 // ---------------------------------------------------------------- Supabase
@@ -58,10 +63,36 @@ const supabaseApi = {
   createZone: (row) => sb.from('zones').insert(row).then(ok),
   updateBus: (id, patch) => sb.from('bus').update(patch).eq('id', id).then(ok),
   createBus: (row) => sb.from('bus').insert(row).then(ok),
+
+  async getSettings() {
+    const rows = await sb.from('reglages').select('cle, valeur').then(ok)
+    return Object.fromEntries(rows.map((r) => [r.cle, r.valeur]))
+  },
+  // Le logo est rangé dans l'espace de stockage public « site » ; l'ancien fichier est supprimé
+  async setLogo(file) {
+    verifierLogo(file)
+    const avant = (await this.getSettings()).logo_url
+    const chemin = `logo/logo-${Date.now()}.${FORMATS_LOGO[file.type]}`
+    const { error } = await sb.storage.from('site').upload(chemin, file, { contentType: file.type, cacheControl: '31536000' })
+    if (error) throw new Error(error.message)
+    const url = sb.storage.from('site').getPublicUrl(chemin).data.publicUrl
+    await sb.from('reglages').upsert({ cle: 'logo_url', valeur: url, updated_at: new Date().toISOString() }).then(ok)
+    if (avant) this.supprimerFichier(avant)
+    return url
+  },
+  async resetLogo() {
+    const avant = (await this.getSettings()).logo_url
+    await sb.from('reglages').delete().eq('cle', 'logo_url').then(ok)
+    if (avant) this.supprimerFichier(avant)
+  },
+  supprimerFichier(url) {
+    const chemin = url.split('/storage/v1/object/public/site/')[1]
+    if (chemin) sb.storage.from('site').remove([chemin]) // sans attendre : un fichier orphelin n'est pas grave
+  },
 }
 
 // ---------------------------------------------------------------- Démo
-const KEY_DEMO = 'bestclean-demo-v1'
+const KEY_DEMO = 'bestclean-demo-v2' // v2 : catalogue réel et moughataas
 const clone = (x) => JSON.parse(JSON.stringify(x))
 let mem = null
 
@@ -120,7 +151,7 @@ function seedOrders(db) {
     [{ article_id: 'a-couvre_lit', taille: 'petit', quantite: 1 }, { article_id: 'a-drap', taille: 'grand', quantite: 2 }],
     [{ article_id: 'a-sajjada', quantite: 2 }, { article_id: 'a-housse', taille: 'grand', quantite: 1 }],
   ]
-  const zones = ['z-tvz', 'z-aintalh', 'z-cite', 'z-tvz', 'z-arafat', 'z-pk', 'z-tvz', 'z-madrid', 'z-cite']
+  const zones = ['z-tvz', 'z-ksar', 'z-sebkha', 'z-tvz', 'z-arafat', 'z-mina', 'z-tvz', 'z-riyad', 'z-teyarett']
   const statuts = ['en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_attente', 'en_lavage', 'en_lavage', 'prete', 'livree', 'collectee', 'livree']
   noms.forEach((nom, i) => {
     const o = buildOrder(db, { nom, telephone: `4${(i * 7919 + 2210000) % 10000000}`.padEnd(8, '0'), zone_id: zones[i % zones.length], adresse: 'Près de la mosquée', source: i % 3 ? 'telephone' : 'web' }, paniers[i % paniers.length])
@@ -177,6 +208,13 @@ const demoApi = {
   async createZone(row) { load().zones.push({ id: uid(), actif: true, ...row }); save() },
   async updateBus(id, patch) { Object.assign(load().bus.find((x) => x.id === id), patch); save() },
   async createBus(row) { load().bus.push({ id: uid(), capacite: 30, ...row }); save() },
+  getSettings: async () => wait(load().reglages || {}),
+  async setLogo(file) {
+    verifierLogo(file)
+    const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file) })
+    const db = load(); db.reglages = { ...db.reglages, logo_url: url }; save(); return url
+  },
+  async resetLogo() { const db = load(); if (db.reglages) delete db.reglages.logo_url; save() },
   resetDemo() { mem = null; try { localStorage.removeItem(KEY_DEMO) } catch { /* ignore */ } },
 }
 

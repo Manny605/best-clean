@@ -4,6 +4,7 @@ import { api, isDemo, canPrint } from '../lib/api.js'
 import { ETAPES, STATUTS, useLang } from '../lib/i18n.jsx'
 import { TELEPHONES, WHATSAPP, lienTel } from '../lib/contact.js'
 import OrderForm from '../components/OrderForm.jsx'
+import { Logo } from '../lib/reglages.jsx'
 import Recu, { dateFr, lienWhatsApp, texteRecu } from '../components/Recu.jsx'
 
 export function PublicShell({ children }) {
@@ -12,7 +13,7 @@ export function PublicShell({ children }) {
     <div className="public">
       <header className="site-head">
         <div className="topbar">
-          <Link to="/" className="brand-mark"><span className="dot" />BestClean{isDemo && <span className="demo-badge">{t.demo}</span>}</Link>
+          <Link to="/" className="brand-mark"><Logo />BestClean{isDemo && <span className="demo-badge">{t.demo}</span>}</Link>
           <nav>
             <NavLink to="/" end>{t.order}</NavLink>
             <NavLink to="/suivi">{t.track}</NavLink>
@@ -24,7 +25,7 @@ export function PublicShell({ children }) {
       <footer className="foot">
         <div className="rug-band" aria-hidden />
         <div className="foot-inner">
-          <div className="brand-mark small"><span className="dot" />BestClean</div>
+          <div className="brand-mark small"><Logo />BestClean</div>
           <p>{t.tagline}</p>
           <p className="foot-phones">{TELEPHONES.map((n) => <a key={n} href={lienTel(n)} dir="ltr">{n}</a>)}</p>
           <p className="foot-links"><Link to="/suivi">{t.track}</Link> · <Link to="/admin">Espace équipe</Link></p>
@@ -121,6 +122,10 @@ export function Commander() {
             {seuil != null && <span className="chip">{t.freeFrom(seuil)}</span>}
             <span className="chip chip-sand">{t.delay}</span>
           </div>
+          <a className="wa-link" href={lienWhatsApp(t.waOrder, WHATSAPP)} target="_blank" rel="noreferrer">
+            <svg viewBox="0 0 24 24" aria-hidden><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.8s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.3.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1.1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.3z" /></svg>
+            {t.orderWa}
+          </a>
         </div>
         <div className="rug-band" aria-hidden />
       </section>
