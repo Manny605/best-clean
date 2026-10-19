@@ -111,7 +111,7 @@ const supabaseApi = {
 }
 
 // ---------------------------------------------------------------- Démo
-const KEY_DEMO = 'bestclean-demo-v2' // v2 : catalogue réel et moughataas
+const KEY_DEMO = 'bestclean-demo-v3' // v3 : livraison gratuite dès 900 MRU
 const clone = (x) => JSON.parse(JSON.stringify(x))
 let mem = null
 
@@ -126,7 +126,6 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 const wait = (v) => new Promise((r) => setTimeout(() => r(clone(v)), 150))
 
 function construireLignes(db, lignes) {
-  if (!lignes.length) throw new Error('La commande est vide')
   const byId = Object.fromEntries(db.articles.map((x) => [x.id, x]))
   const out = lignes.map((l) => {
     const art = byId[l.article_id]
@@ -148,7 +147,8 @@ function buildOrder(db, client, lignes, extra = {}) {
   if (!client.nom?.trim() || !client.telephone?.trim()) throw new Error('Nom et téléphone obligatoires')
   if (!zone) throw new Error('Zone inconnue')
   const { out, byId } = construireLignes(db, lignes)
-  const t = calculerTotaux(lignes, byId, zone)
+  // Demande de collecte sans articles : montants à 0 jusqu'à la saisie par l'équipe (comme la base)
+  const t = lignes.length ? calculerTotaux(lignes, byId, zone) : { sousTotal: 0, frais: 0, total: 0 }
   db.seq += 1
   const bus = db.bus.find((b) => b.id === zone.bus_id)
   return {
@@ -202,6 +202,7 @@ const demoApi = {
   async editOrder(id, client, lignes) {
     const db = load()
     const o = db.commandes.find((c) => c.id === id)
+    if (!lignes.length) throw new Error('La commande est vide')
     if (!client.nom?.trim() || !client.telephone?.trim()) throw new Error('Nom et téléphone obligatoires')
     const zone = db.zones.find((z) => z.id === (client.zone_id || o.zone_id))
     const { out, byId } = construireLignes(db, lignes)

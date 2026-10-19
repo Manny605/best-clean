@@ -3,8 +3,8 @@ import { STATUTS } from '../lib/i18n.jsx'
 import { Logo } from '../lib/reglages.jsx'
 
 const T = {
-  fr: { receipt: 'Reçu de commande', date: 'Date', client: 'Client', zone: 'Quartier', bus: 'Bus', item: 'Article', qty: 'Qté', amount: 'Montant', subtotal: 'Articles', delivery: 'Livraison', free: 'Gratuite', total: 'Total', status: 'Statut', collect: 'Collecte prévue', map: 'Voir sur la carte', big: 'grand', small: 'petit', thanks: 'Merci de votre confiance' },
-  ar: { receipt: 'إيصال الطلب', date: 'التاريخ', client: 'الزبون', zone: 'الحي', bus: 'الباص', item: 'الغرض', qty: 'الكمية', amount: 'المبلغ', subtotal: 'الأغراض', delivery: 'التوصيل', free: 'مجاني', total: 'المجموع', status: 'الحالة', collect: 'موعد الاستلام', map: 'عرض على الخريطة', big: 'كبير', small: 'صغير', thanks: 'شكرًا لثقتكم' },
+  fr: { receipt: 'Reçu de commande', date: 'Date', client: 'Client', zone: 'Quartier', bus: 'Bus', item: 'Article', qty: 'Qté', amount: 'Montant', subtotal: 'Articles', delivery: 'Livraison', free: 'Gratuite', total: 'Total', status: 'Statut', collect: 'Collecte prévue', map: 'Voir sur la carte', big: 'grand', small: 'petit', thanks: 'Merci de votre confiance', toDefine: 'Articles à préciser lors de la collecte' },
+  ar: { receipt: 'إيصال الطلب', date: 'التاريخ', client: 'الزبون', zone: 'الحي', bus: 'الباص', item: 'الغرض', qty: 'الكمية', amount: 'المبلغ', subtotal: 'الأغراض', delivery: 'التوصيل', free: 'مجاني', total: 'المجموع', status: 'الحالة', collect: 'موعد الاستلام', map: 'عرض على الخريطة', big: 'كبير', small: 'صغير', thanks: 'شكرًا لثقتكم', toDefine: 'تُحدَّد الأغراض عند الاستلام' },
 }
 
 export function detailLigne(l, lang) {
@@ -18,7 +18,7 @@ export const dateFr = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: 
 
 export function texteRecu(o, lang = 'fr') {
   const t = T[lang]
-  const lignes = o.lignes.map((l) => `• ${lang === 'ar' ? l.libelle_ar : l.libelle_fr} ${detailLigne(l, lang)} ×${l.quantite} = ${mru(l.montant)}`)
+  const lignes = !o.lignes.length ? [t.toDefine] : o.lignes.map((l) => `• ${lang === 'ar' ? l.libelle_ar : l.libelle_fr} ${detailLigne(l, lang)} ×${l.quantite} = ${mru(l.montant)}`)
   return [
     `BestClean — ${t.receipt} ${o.numero}`,
     `${t.client} : ${o.client_nom} (${o.telephone})`,
@@ -63,6 +63,7 @@ export default function Recu({ commande: o, lang = 'fr' }) {
       <table className="recu-table">
         <thead><tr><th>{t.item}</th><th className="num">{t.qty}</th><th className="num">{t.amount}</th></tr></thead>
         <tbody>
+          {!o.lignes.length && <tr><td colSpan="3" className="muted">{t.toDefine}</td></tr>}
           {o.lignes.map((l) => (
             <tr key={l.id}>
               <td>{lang === 'ar' ? l.libelle_ar : l.libelle_fr} <span className="muted">{detailLigne(l, lang)}</span></td>

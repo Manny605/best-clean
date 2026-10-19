@@ -36,7 +36,7 @@ const tFR = {
 }
 
 const demain = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) }
-const resume = (o) => o.lignes.map((l) => `${l.libelle_fr}${l.longueur ? ` ${Number(l.longueur)}×${Number(l.largeur)}` : l.taille === 'petit' ? ' (P)' : ''}${l.quantite > 1 ? ` ×${l.quantite}` : ''}`).join(', ')
+const resume = (o) => !o.lignes.length ? 'À préciser à la collecte' : o.lignes.map((l) => `${l.libelle_fr}${l.longueur ? ` ${Number(l.longueur)}×${Number(l.largeur)}` : l.taille === 'petit' ? ' (P)' : ''}${l.quantite > 1 ? ` ×${l.quantite}` : ''}`).join(', ')
 
 function Pill({ statut }) {
   const s = STATUTS[statut]

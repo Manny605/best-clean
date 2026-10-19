@@ -11,6 +11,7 @@
     "build:demo": "vite build --mode demo",
     "test": "vitest run",
     "donnees:test": "node scripts/donnees-test.mjs",
+    "donnees:tout": "node scripts/donnees-test.mjs --catalogue",
     "donnees:test:supprimer": "node scripts/donnees-test.mjs --supprimer"
   },
   "dependencies": {
